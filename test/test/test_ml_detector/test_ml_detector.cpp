@@ -23,6 +23,8 @@
 #include "cnpy.cpp"
 
 using namespace esphome::espectre;
+static_assert(ML_MODEL_INPUT_SIZE == ML_NUM_FEATURES,
+              "Exported model input size must match extracted ML feature count");
 
 static const char *TEST_TAG = "test_ml_detector";
 
@@ -48,11 +50,13 @@ static void load_test_data() {
     
     cnpy::npz_t npz = cnpy::npz_load(ML_TEST_DATA_PATH);
     
-    // Load features: shape [N, 12]
+    // Load features: shape [N, num_features]
     cnpy::NpyArray& feat_arr = npz["features"];
     int total_samples = static_cast<int>(feat_arr.shape[0]);
     int num_features = static_cast<int>(feat_arr.shape[1]);
     const float* feat_data = feat_arr.data<float>();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(ML_MODEL_INPUT_SIZE, num_features,
+                                  "ml_test_data feature count must match exported model input size");
     
     // Load expected outputs: shape [N]
     cnpy::NpyArray& exp_arr = npz["expected_outputs"];
@@ -158,39 +162,45 @@ void test_ml_detector_set_threshold_above_max(void) {
 
 // Helper function to run MLP inference (same as MLDetector::predict)
 static float run_inference(const float* features) {
-    float normalized[12];
-    float h1[16];
-    float h2[8];
-    
+    constexpr size_t kBufferSize =
+        (ML_MAX_LAYER_WIDTH > ML_MODEL_INPUT_SIZE) ? ML_MAX_LAYER_WIDTH : ML_MODEL_INPUT_SIZE;
+    float buffer_a[kBufferSize] = {0.0f};
+    float buffer_b[kBufferSize] = {0.0f};
+
     // Normalize raw features using StandardScaler params
-    for (int i = 0; i < 12; i++) {
-        normalized[i] = (features[i] - ML_FEATURE_MEAN[i]) / ML_FEATURE_SCALE[i];
+    for (int i = 0; i < ML_MODEL_INPUT_SIZE; i++) {
+        buffer_a[i] = (features[i] - ML_FEATURE_MEAN[i]) / ML_FEATURE_SCALE[i];
     }
-    
-    // Layer 1: 12 -> 16 + ReLU
-    for (int j = 0; j < 16; j++) {
-        h1[j] = ML_B1[j];
-        for (int i = 0; i < 12; i++) {
-            h1[j] += normalized[i] * ML_W1[i][j];
+
+    float* current = buffer_a;
+    float* next = buffer_b;
+    float out = 0.0f;
+
+    for (int layer = 0; layer < ML_MODEL_NUM_LAYERS; layer++) {
+        const int in_size = ML_MODEL_LAYER_INPUT_SIZES[layer];
+        const int out_size = ML_MODEL_LAYER_OUTPUT_SIZES[layer];
+        const float* weights = ML_MODEL_WEIGHTS[layer];
+        const float* biases = ML_MODEL_BIASES[layer];
+        const bool is_output_layer = (layer == ML_MODEL_NUM_LAYERS - 1);
+
+        for (int j = 0; j < out_size; j++) {
+            float val = biases[j];
+            for (int i = 0; i < in_size; i++) {
+                val += current[i] * weights[i * out_size + j];
+            }
+
+            if (is_output_layer) {
+                out = val;
+            } else {
+                next[j] = std::max(0.0f, val);
+            }
         }
-        h1[j] = std::max(0.0f, h1[j]);
-    }
-    
-    // Layer 2: 16 -> 8 + ReLU
-    for (int j = 0; j < 8; j++) {
-        h2[j] = ML_B2[j];
-        for (int i = 0; i < 16; i++) {
-            h2[j] += h1[i] * ML_W2[i][j];
+
+        if (!is_output_layer) {
+            std::swap(current, next);
         }
-        h2[j] = std::max(0.0f, h2[j]);
     }
-    
-    // Layer 3: 8 -> 1 + Sigmoid
-    float out = ML_B3[0];
-    for (int i = 0; i < 8; i++) {
-        out += h2[i] * ML_W3[i][0];
-    }
-    
+
     // Sigmoid with overflow protection and scaling to 0-10
     if (out < -20.0f) return 0.0f;
     if (out > 20.0f) return ML_METRIC_SCALE;

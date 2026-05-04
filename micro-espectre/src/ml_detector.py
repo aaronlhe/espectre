@@ -19,20 +19,23 @@ import math
 try:
     from src.detector_interface import IDetector, MotionState
     from src.segmentation import SegmentationContext
-    from src.features import extract_features_by_name, DEFAULT_FEATURES
+    from src.features import extract_features_by_name
     from src.config import DEFAULT_SUBCARRIERS
-    from src.ml_weights import (
-        FEATURE_MEAN, FEATURE_SCALE,
-        W1, B1, W2, B2, W3, B3
-    )
 except ImportError:
     from detector_interface import IDetector, MotionState
     from segmentation import SegmentationContext
-    from features import extract_features_by_name, DEFAULT_FEATURES
+    from features import extract_features_by_name
     from config import DEFAULT_SUBCARRIERS
+
+try:
+    from src.ml_weights import (
+        FEATURE_MEAN, FEATURE_SCALE,
+        MODEL_LAYER_SIZES, WEIGHTS, BIASES, FEATURE_NAMES,
+    )
+except ImportError:
     from ml_weights import (
         FEATURE_MEAN, FEATURE_SCALE,
-        W1, B1, W2, B2, W3, B3
+        MODEL_LAYER_SIZES, WEIGHTS, BIASES, FEATURE_NAMES,
     )
 
 # Re-export for convenience
@@ -64,6 +67,10 @@ def sigmoid(x):
 
 def normalize_features(features):
     """Normalize features using pre-computed mean and scale."""
+    if len(features) != len(FEATURE_MEAN):
+        raise ValueError(
+            f"Expected {len(FEATURE_MEAN)} features, got {len(features)}"
+        )
     normalized = []
     for i in range(len(features)):
         normalized.append((features[i] - FEATURE_MEAN[i]) / FEATURE_SCALE[i])
@@ -72,41 +79,31 @@ def normalize_features(features):
 
 def predict(features):
     """
-    Predict motion probability from 12 features.
-    
-    Architecture: 12 -> 16 (ReLU) -> 8 (ReLU) -> 1 (Sigmoid)
+    Predict motion probability from the exported feature vector.
     
     Args:
-        features: List of 12 feature values
+        features: Ordered feature vector expected by the exported model
     
     Returns:
         float: Scaled motion metric (0.0 to 10.0)
     """
     # Normalize
-    x = normalize_features(features)
-    
-    # Layer 1: 12 -> 16 (ReLU)
-    h1 = []
-    for j in range(16):
-        val = B1[j]
-        for i in range(12):
-            val += x[i] * W1[i][j]
-        h1.append(relu(val))
-    
-    # Layer 2: 16 -> 8 (ReLU)
-    h2 = []
-    for j in range(8):
-        val = B2[j]
-        for i in range(16):
-            val += h1[i] * W2[i][j]
-        h2.append(relu(val))
-    
-    # Layer 3: 8 -> 1 (Sigmoid)
-    out = B3[0]
-    for i in range(8):
-        out += h2[i] * W3[i][0]
-    
-    return sigmoid(out) * ML_METRIC_SCALE
+    activations = normalize_features(features)
+
+    for layer_idx, (weights, biases) in enumerate(zip(WEIGHTS, BIASES)):
+        next_activations = []
+        for j in range(len(biases)):
+            val = biases[j]
+            for i in range(len(activations)):
+                val += activations[i] * weights[i][j]
+
+            if layer_idx == len(WEIGHTS) - 1:
+                next_activations.append(val)
+            else:
+                next_activations.append(relu(val))
+        activations = next_activations
+
+    return sigmoid(activations[0]) * ML_METRIC_SCALE
 
 
 def is_motion(features, threshold=ML_DEFAULT_THRESHOLD):
@@ -114,7 +111,7 @@ def is_motion(features, threshold=ML_DEFAULT_THRESHOLD):
     Detect motion from features.
     
     Args:
-        features: List of 12 feature values
+        features: Ordered feature vector expected by the exported model
         threshold: Detection threshold (default: 5.0)
     
     Returns:
@@ -132,13 +129,13 @@ class MLDetector(IDetector):
     """
     Neural Network-based motion detector.
     
-    Uses a pre-trained MLP (12 -> 16 -> 8 -> 1) to classify
+    Uses a pre-trained MLP exported by the training pipeline to classify
     motion based on turbulence features extracted from CSI data.
     
     Algorithm:
     1. Calculate spatial turbulence (std of subcarrier amplitudes)
     2. Store in circular buffer (window_size packets)
-    3. Extract 12 statistical features from buffer
+    3. Extract the configured ML feature vector from buffer
     4. Run neural network inference
     5. Compare probability to threshold for state decision
     """
@@ -251,7 +248,7 @@ class MLDetector(IDetector):
     
     def _extract_features(self):
         """
-        Extract 12 features from turbulence buffer using centralized extractor.
+        Extract the configured feature vector from turbulence buffer.
         
         IMPORTANT: The turbulence_buffer is a circular buffer. After wrap-around,
         a simple slice [:buffer_count] would NOT be in chronological order.
@@ -274,7 +271,7 @@ class MLDetector(IDetector):
         return extract_features_by_name(
             turb_list, len(turb_list), 
             amplitudes=self._current_amplitudes,
-            feature_names=DEFAULT_FEATURES
+            feature_names=FEATURE_NAMES
         )
     
     def get_state(self):

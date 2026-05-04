@@ -196,6 +196,7 @@ inline const char* baseline_file_for_chip(ChipType chip);
 inline const char* movement_file_for_chip(ChipType chip);
 inline std::vector<ChipType> get_available_chips();
 inline bool parse_iso8601_datetime(const std::string& text, std::tm& out_tm);
+inline bool parse_iso8601_epoch_seconds(const std::string& text, double& out_epoch_seconds);
 
 /**
  * Check if a chip type should be skipped in tests.
@@ -342,17 +343,8 @@ inline bool load_tuning_cache() {
     }
 
     // Select one 64SC baseline/movement pair per chip using nearest timestamps.
-    auto parse_epoch = [](const std::string& ts, std::time_t& out_epoch) -> bool {
-        std::tm tm_val{};
-        if (!parse_iso8601_datetime(ts, tm_val)) {
-            return false;
-        }
-        std::time_t epoch = std::mktime(&tm_val);
-        if (epoch == static_cast<std::time_t>(-1)) {
-            return false;
-        }
-        out_epoch = epoch;
-        return true;
+    auto parse_epoch = [](const std::string& ts, double& out_epoch_seconds) -> bool {
+        return parse_iso8601_epoch_seconds(ts, out_epoch_seconds);
     };
 
     for (ChipType chip : get_available_chips()) {
@@ -370,16 +362,16 @@ inline bool load_tuning_cache() {
         bool found_nearest_pair = false;
         double best_delta = 1e100;
         for (const auto& b : baseline_candidates[idx]) {
-            std::time_t b_epoch{};
+            double b_epoch = 0.0;
             if (!parse_epoch(b.collected_at, b_epoch)) {
                 continue;
             }
             for (const auto& m : movement_candidates[idx]) {
-                std::time_t m_epoch{};
+                double m_epoch = 0.0;
                 if (!parse_epoch(m.collected_at, m_epoch)) {
                     continue;
                 }
-                const double delta = std::fabs(std::difftime(m_epoch, b_epoch));
+                const double delta = std::fabs(m_epoch - b_epoch);
                 if (!found_nearest_pair || delta < best_delta) {
                     best_delta = delta;
                     best_baseline = b;
@@ -564,6 +556,34 @@ inline bool parse_iso8601_datetime(const std::string& text, std::tm& out_tm) {
     return true;
 }
 
+inline bool parse_iso8601_epoch_seconds(const std::string& text, double& out_epoch_seconds) {
+    std::tm tm_val{};
+    if (!parse_iso8601_datetime(text, tm_val)) {
+        return false;
+    }
+
+    std::time_t epoch = std::mktime(&tm_val);
+    if (epoch == static_cast<std::time_t>(-1)) {
+        return false;
+    }
+
+    double fractional_seconds = 0.0;
+    const size_t frac_pos = text.find('.', 19);
+    if (frac_pos != std::string::npos) {
+        size_t frac_end = frac_pos + 1;
+        while (frac_end < text.size() && text[frac_end] >= '0' && text[frac_end] <= '9') {
+            frac_end++;
+        }
+        if (frac_end > frac_pos + 1) {
+            const std::string frac_digits = text.substr(frac_pos + 1, frac_end - frac_pos - 1);
+            fractional_seconds = std::strtod(("0." + frac_digits).c_str(), nullptr);
+        }
+    }
+
+    out_epoch_seconds = static_cast<double>(epoch) + fractional_seconds;
+    return true;
+}
+
 inline bool current_pair_delta_seconds(double& out_delta_sec) {
     if (!load_tuning_cache()) {
         return false;
@@ -577,19 +597,14 @@ inline bool current_pair_delta_seconds(double& out_delta_sec) {
         return false;
     }
 
-    std::tm btm{}, mtm{};
-    if (!parse_iso8601_datetime(selected.baseline_collected_at, btm) ||
-        !parse_iso8601_datetime(selected.movement_collected_at, mtm)) {
+    double bt = 0.0;
+    double mt = 0.0;
+    if (!parse_iso8601_epoch_seconds(selected.baseline_collected_at, bt) ||
+        !parse_iso8601_epoch_seconds(selected.movement_collected_at, mt)) {
         return false;
     }
 
-    std::time_t bt = std::mktime(&btm);
-    std::time_t mt = std::mktime(&mtm);
-    if (bt == static_cast<std::time_t>(-1) || mt == static_cast<std::time_t>(-1)) {
-        return false;
-    }
-
-    out_delta_sec = std::difftime(mt, bt);
+    out_delta_sec = mt - bt;
     return true;
 }
 

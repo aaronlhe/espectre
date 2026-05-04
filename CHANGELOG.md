@@ -19,7 +19,8 @@ All notable changes to this project will be documented in this file.
 - **NBVI strategy selection expanded**: each window evaluates four candidates (Entropy Spaced, MAD Clustered, Classic Spaced, Classic Clustered) and selects the lowest-FP option; scoring now exposes `nbvi_classic`, `nbvi_entropy`, and `nbvi_mad`.
 
 - **NBVI defaults and validation tightened**: `alpha` 0.5->0.75, `percentile` 10->5, `noise_gate_percentile` 25->15; calibration FP is now measured with the runtime-consistent adaptive threshold (`P95 x 1.1`).
-- **Hint-band fallback made conservative**: hint/current band is preferred only when calibrated candidates miss the <=5% FP target and the hint is strictly better (`hint_fp_tolerance`, `prefer_hint_on_tie`).
+- **Hint-band fallback made conservative**: hint/current band is now also kept when both the calibrated candidate and the hint/default band already satisfy the <=5% FP target and the hint is not meaningfully worse on that proxy. This prevents over-conservative NBVI bands from replacing a known-good default on datasets such as ESP32-C5.
+- **Python/C++ real-data pairing aligned**: the native C++ test harness now uses full ISO timestamps including fractional seconds when choosing nearest baseline/movement pairs, matching the Python path and removing false regressions caused by second-level truncation.
 
 ### ML and dataset pipeline
 

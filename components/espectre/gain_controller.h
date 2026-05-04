@@ -224,14 +224,20 @@ class GainController {
   /**
    * Check if CV normalization is needed
    * 
-   * CV normalization (dividing by mean) is needed when gain lock was skipped
-   * (strong signal) or when mode is DISABLED. In these cases, AGC/FFT vary
-   * dynamically and CV normalization provides stable turbulence values.
+   * CV normalization (dividing by mean) is needed whenever AGC/FFT are not
+   * effectively locked. That includes:
+   * - strong-signal AUTO fallback (gain lock skipped)
+   * - explicit DISABLED mode
+   * - platforms that do not expose PHY gain-lock APIs at all
+   *
+   * In these cases, AGC/FFT can vary dynamically and CV normalization provides
+   * stable turbulence values aligned with the training pipeline used for
+   * `gain_locked=false` datasets.
    * 
    * @return true if CV normalization should be applied
    */
   bool needs_cv_normalization() const {
-    return skipped_strong_signal_ || mode_ == GainLockMode::DISABLED;
+    return skip_gain_lock_ || skipped_strong_signal_ || mode_ == GainLockMode::DISABLED;
   }
   
  private:

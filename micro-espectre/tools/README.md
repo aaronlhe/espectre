@@ -197,8 +197,11 @@ python 9_compare_chips.py --plot
 **Purpose**: Train, evaluate, and export the production ML model
 
 - Trains the MLP detector with weighted binary cross-entropy
-- Default training uses `--fp-weight 2.0` and context-aware MVS-guided sample weights
+- Default training uses `--fp-weight 1.0`, `--scaler standard`, `--batch-size 32`, grouped session-level CV, and context-aware MVS-guided sample weights
+- Reports blocked out-of-fold metrics plus worst session/chip/source-file groups
+- Uses the standard compiled Keras training/inference path on CPU-only TensorFlow
 - Supports architecture experiments and feature-importance analysis
+- Supports optional chip exclusion experiments via `--exclude-chip CHIP[,CHIP...]`
 - Exports weights for both platforms:
   - `micro-espectre/src/ml_weights.py`
   - `components/espectre/ml_weights.h`
@@ -206,12 +209,17 @@ python 9_compare_chips.py --plot
 ```bash
 python 10_train_ml_model.py                # Train with default settings
 python 10_train_ml_model.py --info         # Show dataset and split info
-python 10_train_ml_model.py --experiment   # Compare model architectures
+python 10_train_ml_model.py --experiment   # Compare the current MLP sweep
 python 10_train_ml_model.py --fp-weight 2.0  # Penalize false positives 2x
+python 10_train_ml_model.py --scaler clipped_standard  # Robust clipping + z-score
+python 10_train_ml_model.py --batch-size 128  # Faster exploratory sweeps
+python 10_train_ml_model.py --exclude-chip ESP32  # Run a chip-exclusion experiment
 python 10_train_ml_model.py --seed-search-until-improvement 20  # Stop at first better seed
 python 10_train_ml_model.py --shap         # SHAP importance (200 samples)
 python 10_train_ml_model.py --shap 500     # SHAP importance (500 samples)
 ```
+
+For production artifact promotion, prefer `--seed-search-until-improvement` instead of a plain training run. The plain command always exports the current seed, while seed-search only replaces artifacts after a strict grouped-CV improvement.
 
 For full training workflow and dataset preparation, see [ML_DATA_COLLECTION.md](../ML_DATA_COLLECTION.md#5-train-model).
 

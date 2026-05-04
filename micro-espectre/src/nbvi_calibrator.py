@@ -704,8 +704,16 @@ class NBVICalibrator:
         hint_mv_values = []
         if hint_band is not None and len(hint_band) == BAND_SIZE:
             hint_fp_rate, hint_mv_values = self._validate_subcarriers(hint_band)
-            
-            if best_fp_rate > 0.05:
+
+            best_fp_acceptable = best_fp_rate <= 0.05
+            hint_fp_acceptable = hint_fp_rate <= 0.05
+            if best_fp_acceptable and hint_fp_acceptable:
+                if hint_fp_rate <= (best_fp_rate + HINT_FP_TOLERANCE):
+                    use_hint_band = True
+                else:
+                    print(f"NBVI: Keeping candidate band with FP {best_fp_rate*100:.1f}% "
+                          f"vs hint {hint_fp_rate*100:.1f}% (acceptable target <5.0%)")
+            elif not best_fp_acceptable:
                 if self.prefer_hint_on_tie:
                     hint_fp_ok = hint_fp_rate <= (best_fp_rate + HINT_FP_TOLERANCE)
                 else:
@@ -717,7 +725,8 @@ class NBVICalibrator:
                     print(f"NBVI: Hint FP ({hint_fp_rate*100:.1f}%) not better than "
                           f"candidate ({best_fp_rate*100:.1f}%) - keeping NBVI band")
             else:
-                print(f"NBVI: Keeping candidate band with FP {best_fp_rate*100:.1f}% (target <5.0%)")
+                print(f"NBVI: Keeping candidate band with FP {best_fp_rate*100:.1f}% "
+                      f"(target <5.0%, hint {hint_fp_rate*100:.1f}% not acceptable)")
         
         if use_hint_band:
             best_band = list(hint_band)

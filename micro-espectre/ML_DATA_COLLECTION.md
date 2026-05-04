@@ -361,32 +361,47 @@ See [tools/README.md](tools/README.md) for complete documentation of all analysi
 Once you have collected labeled data, train the ML model:
 
 ```bash
-# Train model (default uses --fp-weight 2.0)
+# Train model (default uses --fp-weight 1.0, --scaler standard, --batch-size 32)
 python tools/10_train_ml_model.py
 
 # Show dataset info (including excluded files)
 python tools/10_train_ml_model.py --info
+
+# Compare alternate feature normalization modes
+python tools/10_train_ml_model.py --scaler clipped_standard
+
+# Optional chip-exclusion experiment
+python tools/10_train_ml_model.py --exclude-chip ESP32
 ```
 
-The `--fp-weight` parameter multiplies the IDLE class weight during training. Values >1.0 reduce false positives at the cost of slightly lower recall. Current default: `2.0` (production-oriented).
+The `--fp-weight` parameter multiplies the IDLE class weight during training. Values >1.0 reduce false positives at the cost of slightly lower recall. Current defaults: `--fp-weight 1.0`, `--scaler standard`, `--batch-size 32`.
 
 This will:
 1. Load all `.npz` files from `data/`
 2. Apply CV normalization to files with `gain_locked: false`
-3. Apply MVS-guided sample weighting on the default subcarrier set
+3. Apply context-aware MVS-guided sample weighting on the default subcarrier set
 4. Extract 12 features per sliding window
-5. 5-fold cross-validation for reliable metrics
-6. Train MLP model (12 → 16 → 8 → 1) with early stopping and dropout
-7. Export to:
+5. Run grouped cross-validation by paired capture/session, with blocked scoring to reduce overlap optimism
+6. Report worst-group metrics (session, chip, source file) alongside mean fold metrics
+7. Train the selected MLP architecture with early stopping and dropout
+8. Export to:
    - `src/ml_weights.py` (MicroPython) - includes seed and timestamp
    - `components/espectre/ml_weights.h` (C++/ESPHome) - includes seed and timestamp
    - `models/motion_detector_small.tflite` (TFLite int8)
    - `models/feature_scaler.npz` (normalization params)
-   - `models/ml_test_data.npz` (test data for validation)
+   - `models/ml_test_data.npz` (blocked regression subset for inference validation)
 
 Use `--seed <number>` for reproducible training. The seed is saved in the generated weight files.
 
 > **Note**: Files with `gain_locked: false` automatically use CV normalization during feature extraction. Use `--info` to see which files are affected.
+>
+> **Note**: `--exclude-chip` is an experiment knob for ablations and domain-isolation studies. The default training path keeps all supported chips in the dataset unless you explicitly exclude them.
+>
+> **Note**: `ml_test_data.npz` is an inference-regression artifact, not the primary model-selection metric. Architecture and scaler choices should follow the grouped blocked-CV report emitted by `10_train_ml_model.py`.
+>
+> **Tip**: `--scaler clipped_standard` and larger `--batch-size` values are available for exploratory sweeps, but should be validated against `tests/test_validation_real_data.py::TestPerformanceMetrics::test_ml_detection_accuracy` before being promoted to production artifacts.
+>
+> **Tip**: For production artifact promotion, prefer `python tools/10_train_ml_model.py --seed-search-until-improvement <N>` over a plain training run. A plain run always exports the current seed, while the seed-search flow only replaces artifacts after a strict grouped-CV improvement.
 
 ### Compare Detection Methods
 

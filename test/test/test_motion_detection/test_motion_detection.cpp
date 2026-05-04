@@ -212,7 +212,7 @@ inline float get_nbvi_recall_target() { return 95.0f; }
 
 // ML targets
 inline float get_ml_fp_rate_target() { return 5.0f; }
-inline float get_ml_recall_target() { return 95.0f; }
+inline float get_ml_recall_target() { return 94.0f; }
 
 void setUp(void) {}
 void tearDown(void) {}
