@@ -131,6 +131,7 @@ The `me` CLI provides these essential commands:
 | `deploy` | Deploy Python code to device | `./me deploy` |
 | `run` | Run the application | `./me run` |
 | `stream` | Stream raw CSI data via UDP | `./me stream --ip 192.168.1.100` |
+| `detect` | Run live ML motion detection on the PC | `./me detect --log-turbulence` |
 | `collect` | Collect labeled CSI data for ML training | `./me collect --label baseline --duration 10` |
 | `verify` | Verify firmware installation | `./me verify` |
 | `ui` | Open web monitoring interface in browser | `./me ui` |
@@ -152,6 +153,9 @@ The `me` CLI provides these essential commands:
 
 # For real-time CSI streaming (gesture detection, research)
 ./me stream --ip 192.168.1.100  # Stream to PC
+
+# On the PC, inspect live ML motion inference
+./me detect --log-turbulence
 ```
 
 > **Note**: The interactive mode (`./me` without arguments) provides advanced MQTT control features and is covered in detail in the [Interactive CLI (Advanced)](#interactive-cli-advanced) section.

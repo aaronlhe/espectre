@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
 
 - **Governance and SAST**: moved contribution governance to DCO commit-signoff enforcement and kept a dedicated CodeQL workflow for C++/Python.
 - **Micro-ESPectre tooling hardening**: replaced insecure temporary-file usage, improved UDP bind safety with environment-aware host handling, and added `--bind-ip` to `./me collect`.
+- **Host-side live ML debug flow unified in `me`**: the standalone `micro-espectre/tools/12_test_motion_stream.py` utility was replaced by the new `./me detect` subcommand, which runs live ML motion inference from the UDP CSI stream while reading threshold, subcarriers, filters, and hit policy directly from `config.py` / `config_local.py`.
 - **CI reliability and maintainability**: QEMU smoke tests now handle known PHY emulator limits, restore ESP32 coverage, remove unsupported C6 matrix entries, and consolidate local test config paths.
 - **Permission and dependency hygiene**: workflows now declare explicit `contents: read` where required; Dependabot update grouping was tuned to reduce PR noise.
 - **Baseline versions and runtime tooling updated**: example/QEMU configs now require `min_version: 2026.2.0`; ESPHome was updated to `2026.3.0` with measured flash/heap/loop-time improvements.
@@ -50,6 +51,7 @@ All notable changes to this project will be documented in this file.
 
 - **Added**: `examples/espectre-s3-touch-lcd.yaml` for Waveshare-compatible 1.47" S3 boards.
 - **Added**: `micro-espectre/notebooks/01_csi_data_explorer.ipynb` and `micro-espectre/notebooks/02_feature_extraction_and_ml.ipynb`.
+- **Updated**: Micro-ESPectre docs now describe `./me detect` as the supported entrypoint for live host-side ML inference and debugging alongside `stream` and `collect`.
 - **Removed/cleaned**: `examples/uart/`; documented optional `hardware_uart: UART0` usage in classic USB-UART bridge configurations.
 
 ---

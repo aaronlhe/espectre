@@ -256,6 +256,8 @@ cd tools
 #   Terminal 1: ./me stream --ip <PC_IP>
 #   Terminal 2: ./me collect --label baseline --duration 60
 #               ./me collect --label movement --duration 30
+# Optional debug terminal:
+#               ./me detect --log-turbulence
 # see ../ML_DATA_COLLECTION.md for details
 
 # 1. Analyze raw data

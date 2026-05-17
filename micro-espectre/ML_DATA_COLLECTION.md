@@ -67,6 +67,20 @@ Start streaming CSI data from ESP32 to your PC:
 - Sequence numbers for packet loss detection
 - ~100 packets/second
 
+### 4. Optional: Inspect Live ML Motion Detection
+
+If you want to validate runtime ML behavior before recording data, run live
+host-side inference from the UDP CSI stream:
+
+```bash
+./me detect --log-turbulence
+```
+
+`me detect` reads threshold, subcarriers, Hampel, low-pass, and hit filtering
+from `src/config.py` and `src/config_local.py`, just like the rest of
+micro-ESPectre. Use `--bind-ip <local_ip>` only when auto-detection picks the
+wrong interface.
+
 ---
 
 ## Data Collection with `me collect`
