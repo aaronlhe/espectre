@@ -267,7 +267,7 @@ All sensors are created automatically when the `espectre` component is configure
 
 | Sensor Config | Type | Default Name | Description |
 |---------------|------|--------------|-------------|
-| `movement_sensor` | sensor | "Movement Score" | Current motion intensity value |
+| `movement_sensor` | sensor | "Movement Score" | Current motion score on a 0-10 scale (more gradual in ML mode) |
 | `motion_sensor` | binary_sensor | "Motion Detected" | Motion state (on/off) |
 | `threshold_number` | number | "Threshold" | Detection threshold (adjustable from HA) |
 | `calibrate_switch` | switch | "Calibrate" | Trigger band recalibration (ON during calibration) |
@@ -285,11 +285,15 @@ All sensor entities support standard ESPHome options:
 
 The `movement_sensor` also supports ESPHome [sensor filters](https://esphome.io/components/sensor/#sensor-filters) for data transformation.
 
+- **MVS mode**: publishes the current moving-variance based metric
+- **ML mode**: publishes a 0-10 confidence-like score derived from the neural network output
+- **ML temperature scaling**: the ML score is intentionally softened before the sigmoid so Home Assistant can show intermediate values instead of a nearly binary 0/10 output
+
 Common filters:
 
 | Filter | Example | Description |
 |--------|---------|-------------|
-| `multiply` | `multiply: 100` | Scale values (e.g., 0-1 → 0-100) |
+| `multiply` | `multiply: 10` | Scale values (e.g., 0-10 → 0-100) |
 | `round` | `round: 1` | Round to N decimal places |
 | `clamp` | `min_value: 0, max_value: 100` | Limit value range |
 | `offset` | `offset: -0.5` | Add/subtract constant |

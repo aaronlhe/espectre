@@ -29,6 +29,7 @@ constexpr float ML_DEFAULT_THRESHOLD = 5.0f;
 constexpr float ML_MIN_THRESHOLD = 0.0f;
 constexpr float ML_MAX_THRESHOLD = 10.0f;
 constexpr float ML_METRIC_SCALE = 10.0f;
+constexpr float ML_TEMPERATURE = 5.0f;
 
 /**
  * ML (Machine Learning) Detector

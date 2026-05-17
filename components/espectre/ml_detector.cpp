@@ -146,6 +146,10 @@ float MLDetector::predict(const float* features) {
         }
     }
 
+    // Temperature scaling keeps the published score more gradual
+    // without changing the default 5.0 decision boundary.
+    out /= ML_TEMPERATURE;
+
     // Sigmoid with overflow protection and scaling to 0-10 range
     if (out < -20.0f) return 0.0f;
     if (out > 20.0f) return ML_METRIC_SCALE;

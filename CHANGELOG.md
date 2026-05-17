@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Highlights
 
 - **Detection quality and calibration robustness improved across stacks**: NBVI now uses multi-strategy band selection with stricter defaults, aligned adaptive validation, tighter hint-band fallback, unified 12-subcarrier defaults, and a curated validation dataset.
-- **ML reliability improved on cross-chip generalization**: all per-chip datasets were recollected from scratch with stricter quality controls; training now uses chip-aware grouped validation, hard-positive mining, updated features, and retrained weights aligned with the default runtime filter chain.
+- **ML reliability improved on cross-chip generalization**: all per-chip datasets were recollected from scratch with stricter quality controls; training now uses chip-aware grouped validation, hard-positive mining, updated features, retrained weights aligned with the default runtime filter chain, and a more gradual temperature-scaled Movement Score for Home Assistant.
 - **Security and CI governance hardened**: CodeQL and DCO enforcement were added, workflow permissions were tightened, and emulated-target CI was stabilized and simplified.
 - **New S3 display-board profile**: added a dedicated `ESP32-S3 Touch LCD 1.47"` example with tuned display settings and on-device motion status output.
 
@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 - **Hampel now enabled by default**: `hampel_enabled=true` with threshold `5.0 MAD` (from `4.0`) to suppress extreme spikes while preserving motion sensitivity.
 - **NBVI strategy selection expanded**: each window evaluates four candidates (Entropy Spaced, MAD Clustered, Classic Spaced, Classic Clustered) and selects the lowest-FP option; scoring now exposes `nbvi_classic`, `nbvi_entropy`, and `nbvi_mad`.
+- **ML Movement Score is now more gradual**: the published ML metric now uses temperature scaling before the sigmoid so Home Assistant sees intermediate values instead of an almost pure 0/10 on-off signal. The default 5.0 threshold remains the binary decision boundary, so detection behavior and validation targets stay unchanged while the score becomes more informative for dashboards and automations.
 
 - **NBVI defaults and validation tightened**: `alpha` 0.5->0.75, `percentile` 10->5, `noise_gate_percentile` 25->15; calibration FP is now measured with the runtime-consistent adaptive threshold (`P95 x 1.1`).
 - **Hint-band fallback made conservative**: hint/current band is now also kept when both the calibrated candidate and the hint/default band already satisfy the <=5% FP target and the hint is not meaningfully worse on that proxy. This prevents over-conservative NBVI bands from replacing a known-good default on datasets such as ESP32-C5.
@@ -24,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 ### ML and dataset pipeline
 
-- **CV normalization disabled for ML**: MLDetector now always uses raw std (`σ`) for spatial turbulence, regardless of `gain_locked` status. CV normalization (`σ/μ`) remains active only for MVS. This fixes a distribution mismatch where ESP32 (gain_locked=false) produced CV-normalized features (~0.05-0.15) incompatible with the raw std scale (~2-8) used by gain-lock chips, corrupting the StandardScaler and degrading ESP32 ML recall to ~11%. With this fix, ESP32 ML achieves 100% recall / 0.5% FP (F1 99.8%).
+- **CV normalization disabled for ML**: MLDetector now always uses raw std (`σ`) for spatial turbulence, regardless of `gain_locked` status. CV normalization (`σ/μ`) remains active only for MVS. This fixes a distribution mismatch where ESP32 (gain_locked=false) produced CV-normalized features (~0.05-0.15) incompatible with the raw std scale (~2-8) used by gain-lock chips, corrupting the StandardScaler and degrading ESP32 ML recall to ~11%. With this fix, ESP32 ML reaches 99.6% recall / 0.2% FP (F1 99.7%) in Python validation while all supported chips stay above 99% ML F1.
 - **Training leakage protections added**: CV moved from `StratifiedKFold` to `StratifiedGroupKFold` (grouped by chip), and internal validation split is explicitly stratified.
 - **Hard-positive mining added**: subtle near-threshold motion samples are up-weighted to improve worst-chip recall.
 - **Feature set refreshed**: `turb_delta` was replaced by `waveform_length` after cross-chip correlation/SHAP validation.

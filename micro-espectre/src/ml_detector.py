@@ -46,6 +46,7 @@ ML_DEFAULT_THRESHOLD = 5.0
 ML_MIN_THRESHOLD = 0.0
 ML_MAX_THRESHOLD = 10.0
 ML_METRIC_SCALE = 10.0
+ML_TEMPERATURE = 5.0
 
 # ============================================================================
 # Neural Network Inference Functions
@@ -103,7 +104,7 @@ def predict(features):
                 next_activations.append(relu(val))
         activations = next_activations
 
-    return sigmoid(activations[0]) * ML_METRIC_SCALE
+    return sigmoid(activations[0] / ML_TEMPERATURE) * ML_METRIC_SCALE
 
 
 def is_motion(features, threshold=ML_DEFAULT_THRESHOLD):

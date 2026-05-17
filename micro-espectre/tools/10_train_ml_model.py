@@ -174,6 +174,7 @@ DEFAULT_HIDDEN_LAYERS = [24, 12]
 DEFAULT_FP_WEIGHT = 1.0
 DEFAULT_SCALER_MODE = 'standard'
 DEFAULT_BATCH_SIZE = 32
+DEFAULT_ML_TEMPERATURE = 5.0
 # All chips included: MLDetector always uses raw std (CV normalization
 # is disabled in both training and inference), so ESP32 data is compatible
 # with gain-lock chips despite gain_locked=False.
@@ -1260,6 +1261,33 @@ def predict_probabilities(model, X):
     return model.predict(X, verbose=0).reshape(-1)
 
 
+def predict_tempered_probabilities(model, X, temperature=DEFAULT_ML_TEMPERATURE):
+    """
+    Return probabilities after applying the same post-logit temperature scaling
+    used by Python/C++ runtime inference.
+
+    We must operate on true logits. Reconstructing them from sigmoid
+    probabilities becomes numerically unstable for saturated samples and can
+    drift from the exported manual inference path.
+    """
+    import tensorflow as tf
+
+    X = np.asarray(X, dtype=np.float32)
+    if temperature == 1.0:
+        return predict_probabilities(model, X)
+
+    if len(model.layers) == 1:
+        pre_output = X
+    else:
+        penultimate_model = tf.keras.Model(inputs=model.inputs, outputs=model.layers[-2].output)
+        pre_output = penultimate_model.predict(X, verbose=0)
+
+    output_kernel, output_bias = model.layers[-1].get_weights()
+    logits = np.matmul(pre_output, output_kernel).reshape(-1) + output_bias.reshape(-1)[0]
+    scaled_logits = logits / float(temperature)
+    return 1.0 / (1.0 + np.exp(-scaled_logits))
+
+
 def evaluate_model(model, X_test, y_test):
     """
     Evaluate a model on test data and return metrics dict.
@@ -1746,7 +1774,7 @@ def export_test_data(model, scaler, X_test_raw, y_test, output_path, sample_cont
     """
     # Normalize for prediction
     X_test_scaled = scaler.transform(X_test_raw)
-    predictions = predict_probabilities(model, X_test_scaled)
+    predictions = predict_tempered_probabilities(model, X_test_scaled)
     
     # Save RAW features (not normalized) so tests can verify full pipeline
     payload = {
